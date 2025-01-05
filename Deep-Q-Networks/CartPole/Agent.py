@@ -1,10 +1,13 @@
 import gymnasium as gym
-from itertools import count
 import numpy as np
 import torch
+import time
+from datetime import datetime
+from itertools import count
 
 from DQN import DQN
 from ReplayMemory import ReplayMemory
+from Logger import Logger
 
 class Agent:
     def __init__(self, env:gym.Wrapper, policy_net:DQN=None, target_net:DQN=None, replay_memory:ReplayMemory=None, lr=0.0025, gamma=0.9, epsilon=1.0, epsilon_decay=1e-3, min_epsilon=0.01, device=torch.device('cpu')):
@@ -24,6 +27,9 @@ class Agent:
         self.device = device
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.AdamW(self.policy_net.parameters(), self.lr, amsgrad=True)
+        self.start_time = datetime.now()
+        self.logger = Logger(f"runs/{self.start_time.strftime('%Y-%m-%d_%H-%M-%S')}")
+        self.logger.init_log(env, lr, gamma, epsilon, epsilon_decay, min_epsilon, device)
 
     def get_action(self, obs):
         if np.random.rand() < self.epsilon:
@@ -60,9 +66,7 @@ class Agent:
                 if terminated or truncated:
                     break
 
-            if ep % 1 == 0:
-                # Good: reward 100+ by timestep 30
-                print(f"Episode {ep}: {episode_reward} reward at timestep {t}")
+            self.logger.log_reward(ep, episode_reward, t)
 
         torch.save(self.policy_net.state_dict(), f'policy_{num_episodes}.pt')
         print(f"Model saved as policy_{num_episodes}.pt")
@@ -102,24 +106,31 @@ class Agent:
             self.target_net.load_state_dict(policy_net_state_dict)
 
     def validate(self, num_episodes, val_env:gym.Wrapper, state_dict_path=None):
-        ep_rewards = []
+        episode_rewards = []
         if state_dict_path:
             state_dict = torch.load(state_dict_path, map_location=self.device, weights_only=True)
             self.policy_net.load_state_dict(state_dict)
         self.epsilon = self.min_epsilon
-        for ep in range(num_episodes):
+        for ep in range(1, num_episodes+1):
             obs, info = val_env.reset()
             terminated = False
-            ep_reward = 0
+            episode_reward = 0
             
-            while not terminated or truncated:
+            for t in count(start=1):
                 val_env.render()
                 with torch.no_grad():
                     action = self.get_action(obs)
                     next_obs, reward, terminated, truncated, info = val_env.step(action)
-                    ep_reward += reward
+                    episode_reward += reward
                     obs = next_obs
+                if terminated or truncated:
+                    break
             
-            ep_rewards.append(ep_reward)
+            episode_rewards.append(episode_reward)
+            self.logger.log_reward(ep, episode_reward, t, is_train=False)
+        self.logger.log_val_ave_rewards(episode_rewards, ep)
         
-        print(ep_rewards)
+    def close(self):
+        self.env.close()
+        end_time = datetime.now()
+        self.logger.close(end_time, self.start_time)

@@ -4,6 +4,7 @@ import torch
 import time
 from datetime import datetime
 from itertools import count
+from torch.utils.tensorboard import SummaryWriter
 
 from DQN import DQN
 from ReplayMemory import ReplayMemory
@@ -28,8 +29,10 @@ class Agent:
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.AdamW(self.policy_net.parameters(), self.lr, amsgrad=True)
         self.start_time = datetime.now()
-        self.logger = Logger(f"runs/{self.start_time.strftime('%Y-%m-%d_%H-%M-%S')}")
+        self.logdir_path = f"runs/{self.start_time.strftime('%Y-%m-%d_%H-%M-%S')}"
+        self.logger = Logger(self.logdir_path)
         self.logger.init_log(env, lr, gamma, epsilon, epsilon_decay, min_epsilon, device)
+        self.writer = SummaryWriter(self.logdir_path)
 
     def get_action(self, obs):
         if np.random.rand() < self.epsilon:
@@ -65,10 +68,11 @@ class Agent:
                 self.decay_epsilon()
                 if terminated or truncated:
                     break
-
-            self.logger.log_reward(ep, episode_reward, t)
-
-        torch.save(self.policy_net.state_dict(), f'policy_{num_episodes}.pt')
+            
+            self.logger.log_reward(ep, num_episodes, episode_reward, t)
+            self.writer.add_scalar('Reward/train', episode_reward, ep)
+ 
+        torch.save(self.policy_net.state_dict(), f'{self.logdir_path}/policy_{num_episodes}.pt')
         print(f"Model saved as policy_{num_episodes}.pt")
 
     def train_model(self, mini_batch, timestep):
@@ -127,7 +131,9 @@ class Agent:
                     break
             
             episode_rewards.append(episode_reward)
-            self.logger.log_reward(ep, episode_reward, t, is_train=False)
+            self.logger.log_reward(ep, num_episodes, episode_reward, t, is_train=False)
+            self.writer.add_scalar('Reward/test', episode_reward, ep)
+
         self.logger.log_val_ave_rewards(episode_rewards, ep)
         
     def close(self):

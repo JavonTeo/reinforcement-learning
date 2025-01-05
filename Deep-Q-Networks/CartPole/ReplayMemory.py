@@ -19,7 +19,7 @@ class ReplayMemory:
             samp = random.sample(self.replay_buffer, batch_size)
             obss, actions, rewards, next_obss, terminateds = zip(*samp)
             return (torch.tensor(np.array(obss)).float(),
-                    torch.tensor(np.array(actions)),
+                    torch.tensor(np.array(actions)).long(),
                     torch.tensor(np.array(rewards)).float(),
                     torch.tensor(np.array(next_obss)).float(),
                     torch.tensor(np.array(terminateds)))

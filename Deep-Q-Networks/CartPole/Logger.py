@@ -17,14 +17,14 @@ class Logger:
         self.logger.info(f"Minimum epsilon: {min_epsilon}")
         self.logger.info(f"Device used: {device}")
     
-    def log_reward(self, episode, reward, timestep, is_train=True):
+    def log_reward(self, ep, total_eps, reward, timestep, is_train=True):
         if is_train:
-            self.logger.info(f"[TRAIN][EPISODE {episode}][TIMESTEP {timestep}]: {reward}")
+            self.logger.info(f"[TRAIN][ep {ep}/{total_eps}][TIMESTEP {timestep}]: {reward}")
         else:
-            self.logger.info(f"[VALIDATION][EPISODE {episode}][TIMESTEP {timestep}]: {reward}")
+            self.logger.info(f"[VALIDATION][ep {ep}/{total_eps}][TIMESTEP {timestep}]: {reward}")
     
-    def log_val_ave_rewards(self, rewards, episodes):
-        self.logger.info(f"Validation average rewards over {episodes} episodes: {sum(rewards)/episodes}")
+    def log_val_ave_rewards(self, rewards, total_eps):
+        self.logger.info(f"Validation average rewards over {total_eps} eps: {sum(rewards)/total_eps}")
 
     def close(self, end_time, start_time):
         self.logger.info(f"Training completed at: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")

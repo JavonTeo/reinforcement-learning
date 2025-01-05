@@ -1,1 +1,8 @@
-gymnasium
+numpy==1.23.1
+gymnasium==1.0.0
+torch==2.5.1+cu124
+scikit-learn==1.0.1
+scipy==1.13.1
+pygame==2.6.1
+tensorboard==2.7.0
+protobuf==3.20.*

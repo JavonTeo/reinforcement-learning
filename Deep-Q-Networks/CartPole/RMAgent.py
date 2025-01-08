@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from DQN import DQN
 from ReplayMemory import ReplayMemory
 from Logger import Logger
+from Transitions.Transition import Transition
 
 class Agent:
     def __init__(self, env:gym.Wrapper, policy_net:DQN=None, target_net:DQN=None, replay_memory:ReplayMemory=None, lr=0.0025, gamma=0.9, epsilon=1.0, epsilon_decay=1e-3, min_epsilon=0.01, device=torch.device('cpu')):
@@ -31,7 +32,7 @@ class Agent:
         self.start_time = datetime.now()
         self.logdir_path = f"runs/{self.start_time.strftime('%Y-%m-%d_%H-%M-%S')}"
         self.logger = Logger(self.logdir_path)
-        self.logger.init_log(env, lr, gamma, epsilon, epsilon_decay, min_epsilon, device)
+        self.logger.init_log(env, self, lr, gamma, epsilon, epsilon_decay, min_epsilon, device)
         self.writer = SummaryWriter(self.logdir_path)
 
     def get_action(self, obs):
@@ -59,7 +60,8 @@ class Agent:
                 self.policy_net.train()
                 next_obs, reward, terminated, truncated, info =  self.env.step(action)
                 episode_reward += reward
-                self.replay_memory.push((obs, action, reward, next_obs, int(terminated)))
+                transition = Transition(obs, action, reward, next_obs, int(terminated))
+                self.replay_memory.push(transition)
                 obs = next_obs
                 batch_size = 128
                 mini_batch = self.replay_memory.sample(batch_size)
@@ -140,3 +142,6 @@ class Agent:
         self.env.close()
         end_time = datetime.now()
         self.logger.close(end_time, self.start_time)
+    
+    def __repr__(self):
+        return "DQN Agent with Replay Memory"

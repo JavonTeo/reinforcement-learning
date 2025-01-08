@@ -8,8 +8,9 @@ class Logger:
         os.makedirs(dirPath, exist_ok=True)
         logging.basicConfig(filename=f'{dirPath}/log.log', level=logging.INFO)
     
-    def init_log(self, env:gym.Wrapper, lr, gamma, epsilon, epsilon_decay, min_epsilon, device):
+    def init_log(self, env:gym.Wrapper, agent, lr, gamma, epsilon, epsilon_decay, min_epsilon, device):
         self.logger.info(f"Environment: {env.unwrapped.spec.id}")
+        self.logger.info(f"Agent: {agent}")
         self.logger.info(f"Learning rate: {lr}")
         self.logger.info(f"Gamma: {gamma}")
         self.logger.info(f"Epsilon: {epsilon}")

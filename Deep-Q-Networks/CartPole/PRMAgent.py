@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from DQN import DQN
 from ReplayMemory import PrioritizedReplayMemory
 from Logger import Logger
+from Transitions.Transition import Transition
 
 class Agent:
     def __init__(self, env:gym.Wrapper, policy_net:DQN=None, target_net:DQN=None, replay_memory:PrioritizedReplayMemory=None, priority_scale=0.6, lr=0.0025, gamma=0.9, epsilon=1.0, epsilon_decay=1e-3, min_epsilon=0.01, device=torch.device('cpu')):
@@ -27,13 +28,23 @@ class Agent:
         self.epsilon_decay = epsilon_decay
         self.min_epsilon = min_epsilon
         self.device = device
-        self.criterion = torch.nn.MSELoss()
+        self.criterion = self.loss_fn
         self.optimizer = torch.optim.AdamW(self.policy_net.parameters(), self.lr, amsgrad=True)
         self.start_time = datetime.now()
         self.logdir_path = f"runs/{self.start_time.strftime('%Y-%m-%d_%H-%M-%S')}"
         self.logger = Logger(self.logdir_path)
-        self.logger.init_log(env, lr, gamma, epsilon, epsilon_decay, min_epsilon, device)
+        self.logger.init_log(env, self, lr, gamma, epsilon, epsilon_decay, min_epsilon, device)
         self.writer = SummaryWriter(self.logdir_path)
+
+    def loss_fn(self, pred_q_values, target_q_values, importance_weights):
+        """
+        Follows MSE loss, but with importance sampling weights.
+        Taken from DQN with PER paper.
+        """
+        td_errors = target_q_values - pred_q_values
+        importance_weighted_errors = importance_weights * td_errors
+        loss = torch.mean(importance_weighted_errors ** 2)
+        return loss
 
     def get_action(self, obs):
         if np.random.rand() < self.epsilon:
@@ -49,7 +60,8 @@ class Agent:
     def decay_epsilon(self):
         self.epsilon = max(self.min_epsilon, self.epsilon - self.epsilon_decay)
 
-    def train(self, num_episodes):
+    def train(self, num_episodes, batch_size=128):
+        beta_update = (1 - self.replay_memory.beta) / num_episodes
         for ep in range(1, num_episodes + 1):
             obs, info = self.env.reset()
             terminated = False
@@ -60,10 +72,10 @@ class Agent:
                 self.policy_net.train()
                 next_obs, reward, terminated, truncated, info =  self.env.step(action)
                 episode_reward += reward
-                self.replay_memory.push((obs, action, reward, next_obs, int(terminated)))
+                transition = Transition(obs, action, reward, next_obs, int(terminated))
+                self.replay_memory.push(transition)
                 obs = next_obs
-                batch_size = 128
-                mini_batch, importance_weights, sample_indices = self.replay_memory.sample(batch_size, self.priority_scale)
+                mini_batch, importance_weights, sample_indices = self.replay_memory.sample(batch_size, self.priority_scale, beta_update)
                 if mini_batch is not None:
                     self.train_model(mini_batch, importance_weights, sample_indices, t)
                 self.decay_epsilon()
@@ -76,7 +88,7 @@ class Agent:
         torch.save(self.policy_net.state_dict(), f'{self.logdir_path}/policy_{num_episodes}.pt')
         print(f"Model saved as policy_{num_episodes}.pt")
 
-    def train_model(self, mini_batch, importance_weights, sample_indices, timestep, priority_epsilon=1e-5):
+    def train_model(self, mini_batch, importance_weights, sample_indices, timestep):
         obss, actions, rewards, next_obss, terminateds = mini_batch
         obss = obss.to(self.device)
         actions = actions.to(self.device)
@@ -92,19 +104,15 @@ class Agent:
         target_q_values_next_states = self.target_net(next_obss)
         target_q_values = rewards + self.gamma * torch.max(target_q_values_next_states, dim=1)[0] * (1 - terminateds)
 
-        td_errors = torch.abs(target_q_values - pred_q_values)
-
         """
         Update priorities in replay memory
         """
-        self.replay_memory.update_priorities(sample_indices, td_errors)
+        self.replay_memory.update_priorities(pred_q_values, target_q_values, sample_indices)
 
-        loss = self.criterion(pred_q_values, target_q_values)
-        loss = torch.mean(importance_weights * loss)
+        loss = self.criterion(pred_q_values, target_q_values, importance_weights)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
 
         N = 10
         if timestep % N == 0:
@@ -147,3 +155,6 @@ class Agent:
         self.env.close()
         end_time = datetime.now()
         self.logger.close(end_time, self.start_time)
+
+    def __repr__(self):
+        return "DQN Agent with Prioritized Replay Memory"

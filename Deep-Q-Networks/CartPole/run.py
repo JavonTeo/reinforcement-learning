@@ -7,7 +7,7 @@ if __name__ == "__main__":
     env = gym.make("CartPole-v1")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    num_episodes = 200
+    num_episodes = 1000
 
     agent = Agent(env, device=device)
     agent.train(num_episodes)

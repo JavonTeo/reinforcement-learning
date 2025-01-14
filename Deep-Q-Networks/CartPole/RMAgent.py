@@ -105,10 +105,10 @@ class Agent:
         if timestep % N == 0:
             policy_net_state_dict = self.policy_net.state_dict()
             target_net_state_dict = self.target_net.state_dict()
-            TAU = 0.005
-            for key in policy_net_state_dict:
-                target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
-            self.target_net.load_state_dict(target_net_state_dict)
+            # TAU = 0.005
+            # for key in policy_net_state_dict:
+            #     target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
+            # self.target_net.load_state_dict(target_net_state_dict)
             self.target_net.load_state_dict(policy_net_state_dict)
 
     def validate(self, num_episodes, val_env:gym.Wrapper, state_dict_path=None):

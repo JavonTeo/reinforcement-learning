@@ -75,7 +75,10 @@ class Agent:
                 transition = Transition(obs, action, reward, next_obs, int(terminated))
                 self.replay_memory.push(transition)
                 obs = next_obs
-                mini_batch, importance_weights, sample_indices = self.replay_memory.sample(batch_size, self.priority_scale, beta_update)
+                # sample_probs = self.replay_memory.get_probs(self.priority_scale)
+                mini_batch, importance_weights, sample_indices = self.replay_memory.sample(
+                    batch_size, self.priority_scale, beta_update)
+                # importance_weights = self.replay_memory.get_importance_weights(sample_probs, beta_update)
                 if mini_batch is not None:
                     self.train_model(mini_batch, importance_weights, sample_indices, t)
                 self.decay_epsilon()
@@ -118,10 +121,10 @@ class Agent:
         if timestep % N == 0:
             policy_net_state_dict = self.policy_net.state_dict()
             target_net_state_dict = self.target_net.state_dict()
-            TAU = 0.005
-            for key in policy_net_state_dict:
-                target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
-            self.target_net.load_state_dict(target_net_state_dict)
+            # TAU = 0.005
+            # for key in policy_net_state_dict:
+            #     target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
+            # self.target_net.load_state_dict(target_net_state_dict)
             self.target_net.load_state_dict(policy_net_state_dict)
 
     def validate(self, num_episodes, val_env:gym.Wrapper, state_dict_path=None):

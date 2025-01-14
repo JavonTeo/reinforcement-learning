@@ -37,19 +37,19 @@ class ReplayMemory:
         return len(self.replay_buffer)
 
 
-class PrioritizedReplayMemory:
+class PrioritizedReplayMemory(ReplayMemory):
     def __init__(self, capacity, priority_epsilon=1e-5, beta=0.4):
         """
         Note: Both the transitions and the priorities are stored in the replay buffer.
         """
-        self.replay_buffer = deque(maxlen = capacity)
+        super().__init__(capacity)
         self.priority_epsilon = priority_epsilon
         self.beta = beta
 
     def push(self, transition:Transition):
         """ Save transition to replay buffer"""
         priority = max([transition.priority for transition in self.replay_buffer], default=1)
-        self.replay_buffer.append(PrioritizedTransition(transition, priority))
+        super().push(PrioritizedTransition(transition, priority))
 
     def update_priorities(self, pred_q_values, target_q_values, sample_indices):
         td_errors = target_q_values - pred_q_values
@@ -73,8 +73,6 @@ class PrioritizedReplayMemory:
         if len(self) < batch_size:
             return None, None, None
         else:
-            #if len(self) >= 200:
-            #    breakpoint()
             sample_probabilities = self.get_probs(priority_scale)
             sample_indices = random.choices(range(len(self.replay_buffer)), weights=sample_probabilities, k=batch_size)
             samp = np.array(self.replay_buffer, dtype=object)[sample_indices]
@@ -91,6 +89,3 @@ class PrioritizedReplayMemory:
                     torch.tensor(np.array(rewards)).float(),
                     torch.tensor(np.array(next_obss)).float(),
                     torch.tensor(np.array(terminateds))), importance_weights, sample_indices
-
-    def __len__(self):
-        return len(self.replay_buffer)
